@@ -1,0 +1,62 @@
+@using THGen.Data
+@using THGen.Data.Services
+@inject GeniusService Genius
+@if (Hit is null)
+{
+}
+else
+{
+    @if (_isLoading)
+    {
+        <MudProgressCircular Color="Color.Default" Indeterminate="true"/>
+    }
+    else
+    {
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Lyrics</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudTooltip Text="Open in Genius.com">
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInBrowser" Href="@Hit.Result.Url.ToString()" Target="_blank" />
+                    </MudTooltip>
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.body1">@((MarkupString)_lyricsContent)</MudText>
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+
+    [Parameter]
+    public Hit? Hit { get; set; }
+
+    private bool _isLoading = true;
+    private long _oldId;
+    private string _lyricsContent = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Hit is not null && Hit.Result.Id != _oldId)
+        {
+            _isLoading = true;
+            _oldId = Hit.Result.Id;
+            await Load();
+            StateHasChanged();
+        }
+    }
+
+    private async Task Load()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        _lyricsContent = await Genius.GetScrapedLyricsAsync(Hit.Result.Url.ToString());
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+}

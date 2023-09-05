@@ -1,0 +1,122 @@
+﻿@page "/"
+@using THGen.Data.Services
+@using THGen.Data
+@using System.Text.RegularExpressions
+@using System.Text.Json
+@inject TidalHifiCurrentService _tidalHifiCurrent
+@inject GeniusService _genius
+
+<PageTitle>THGen</PageTitle>
+
+<MudLayout>
+    <MudAppBar>
+        THGen
+        <MudSpacer />
+        <MudTooltip Text="Refresh">
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit" aria-label="Refresh" @onclick="OnRefreshClick" />
+        </MudTooltip>
+    </MudAppBar>
+    <MudMainContent>
+        <MudContainer Class="py-3">
+            <MudGrid>
+                @if (_currentTrack is null)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Error">No track</MudAlert>
+                        </MudItem>
+                    }
+                    else
+                    {
+                        <MudItem xs="12">
+                            <MudCard>
+                                <MudCardContent>
+                                    <MudText Typo="Typo.h6">@_currentTrack.Title</MudText>
+                                    <MudText>@_currentTrack.Artist</MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                        
+                        @if (_isLoadingResults)
+                        {
+                            <MudItem xs="12">
+                                <MudProgressCircular Color="Color.Default" Indeterminate="true" /> 
+                            </MudItem>
+                            }
+                        else
+                        {
+                            if (_geniusSearch is null || !_geniusSearch.Response.Hits.Any())
+                            {
+                                <MudItem xs="12">
+                                    <MudAlert Severity="Severity.Error">No search results</MudAlert>
+                                </MudItem>
+                            }
+                            else
+                            {
+                                <MudItem xs="12" sm="3">
+                                    <MudPaper>
+                                        <MudList Clickable="true" @bind-SelectedValue="_selectedHit" >
+                                            @foreach (var hit in _geniusSearch.Response.Hits)
+                                            {
+                                                <MudListItem Value="hit">
+                                                    <strong>@hit.Result.TitleWithFeatured</strong><br/>
+                                                    @hit.Result.PrimaryArtist.Name
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    </MudPaper>
+                                </MudItem>
+                                <MudItem xs="12" sm="9">
+                                    <GeniusView Hit="_selectedHit as Hit"/> 
+                                </MudItem>
+                            }
+                        }
+                    }
+            </MudGrid>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+
+    private TidalHifiCurrent? _currentTrack;
+    private GeniusSearch? _geniusSearch;
+    private bool _isLoadingResults = true;
+    private bool _isLoadingLyrics = true;
+    private object? _selectedHit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrent();
+    }
+
+    private async Task LoadCurrent()
+    {
+        _isLoadingResults = true;
+        _currentTrack = await _tidalHifiCurrent.GetCurrentAsync();
+        StateHasChanged();
+        _geniusSearch = null;
+        _selectedHit = null;
+        if (_currentTrack is not null)
+        {
+            var text = _currentTrack!.Title;
+            text = Regex.Replace(text, @"\(.*?\)", "");
+            text = Regex.Replace(text, @"\s{2,}", " "); // let's exclude trivial replaces 
+            _isLoadingResults = false;
+            _geniusSearch = await _genius.GetSearchResultsAsync($"{text} {_currentTrack!.Artist}");
+            if (_geniusSearch.Response.Hits.Any())
+            {
+                _selectedHit = _geniusSearch.Response.Hits.First();
+                Console.WriteLine(_selectedHit);
+                StateHasChanged();
+            }
+            StateHasChanged();
+
+        }
+    }
+    
+    private async Task OnRefreshClick(MouseEventArgs obj)
+    {
+        await LoadCurrent();
+    }
+
+}
